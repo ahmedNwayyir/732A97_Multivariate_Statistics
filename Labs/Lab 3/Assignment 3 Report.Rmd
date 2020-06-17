@@ -1,0 +1,257 @@
+---
+title: "Assignment 3: Principle Component and factor analysis"
+author: "Mohsen Pirmoradiyan, Ahmed Alhasan, Asad Enver, Ali Etminan, Mubarak Hussain"
+date: "2019/12/05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(corrplot)
+library(ggplot2)
+library(psych)
+library(ggrepel)
+library(gridExtra )
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Question 1: Principal components, including interpretation of them
+
+
+### (a) Obtain the sample correlation matrix R for these data, and determine its eigenvalues and eigenvectors.
+
+Initially, We read the T1-9 data and add column names
+
+```{r data}
+
+newdata <- read.delim("D:/Machine Learning/Workshop/Multivariate Statistics/Data/T1-9.dat")
+colnames(newdata) <- c("Country", "100m", "200m", "400m", "800m", "1500m", 
+                       "3000m", "Marathon")
+
+```
+
+Here, we create the correlation matrix on the data with two decimal points and plot the correlation matrix for a visual comprehension. We use the *corrplot()* function from the *corrplot* package.
+
+```{r cor, echo=FALSE, fig.height = 4.2 }
+
+cor.mat <- round(cor(newdata[,-1]),2)
+cor.mat 
+corrplot(cor.mat)
+
+```
+
+
+Now using R's *eigen()* function we can generate the eigenvalues and vectors
+
+```{r eigens}
+
+eigens <- eigen(cor.mat)
+eigens
+
+```
+
+
+### (b) Determine the first two principal components for the standardized variables. Prepare a table showing the correlations of the standardized variables with the components, and the cumulative percentage of the total (standardized) sample variance explained by the two components.
+
+
+From part *(a)* we have the eigenvectors of the correlation matrix. Each eigenvector represents the principle component for a variable. Now we can generate a table showing the correlation between variables and different components.
+
+```{r cortable}
+
+eigen.vectors <- eigens$vectors
+row.names(eigen.vectors) <- c("100m", "200m", "400m", "800m", "1500m",
+                              "3000m", "Marathon")
+colnames(eigen.vectors) <- c("COMP1", "COMP2", "COMP3", "COMP4", "COMP5", 
+                             "COMP6", "COMP7")
+eigen.vectors
+
+```
+
+
+Alternatively, we can use the *prcomp()* function to determine the components as well as their standard deviations. 
+
+```{r prcomp}
+
+alt.pca <- prcomp(newdata[,-1], center = TRUE, scale. = TRUE)
+alt.pca
+
+```
+
+However, we are going to stick to the values obtained from part (a) for the rest of the solution.
+
+The first two principle components:
+
+```{r PCs}
+
+eigens$vectors[,1:2]
+
+```
+
+As the next step, we draw a plot using the first principle component (PC1) for the x axis and the second principle component (PC2) for the y axis:
+
+```{r PCplot, echo=FALSE}
+
+ggplot() +
+  geom_point(aes(alt.pca$x[,1],alt.pca$x[,2])) +
+  xlab("PC1") + ylab("PC2") + ggtitle("Principle Components")
+
+```
+
+For the next part, we calculate the contribution (accounted sample variance) of the first principle component in percentage
+
+```{r PC1}
+
+PC1 <- (eigens$values[1]/sum(eigens$values))*100
+PC1
+
+```
+
+We do the same calculations for the second principle component
+
+```{r PC2}
+
+PC2 <- (eigens$values[2]/sum(eigens$values))*100
+PC2
+
+```
+
+Finally, we calculate the cumulative proportion of the total sample variance for PC1 and PC2 in percentage
+
+```{r totalvar}
+
+total.var <- PC1 + PC2
+total.var
+
+```
+
+From the results we can see that the first two principle components have a 92.1% contribution to the total variance. Therefore, the cumulative proportion of the total sample variance for PC1 and PC2 is 0.92
+
+### (c) Interpret the two principal components obtained in Part b. (Note that the first component is essentially a normalized unit vector and might measure the athletic excellence of a given nation. The second component might measure the relative strength of a nation at the various running distances.)
+
+From the results we can see that all variables contribute almost equally to the first component. However, for the second component we can see a larger range in the values. This could be an indication of a nation's strength (running time) for various distances. We could consider the second component as the **"Distance Component"**
+
+### (d) Rank the nations based on their score on the first principal component. Does this ranking correspond with your inituitive notion of athletic excellence for the various countries?
+
+```{r}
+records <- newdata[,-1]
+rownames(records) <- newdata[,1]
+adj <- records * alt.pca$rotation[,1]
+rank <-apply(adj, 1, mean)
+rank[order(rank)]
+```
+
+- The countries ranking according to the first PC corresponds with their overall performance across all races.
+
+
+
+
+
+
+
+
+
+
+```{r}
+test  <- function(records, m= 3){
+  p   <- dim(records)[2]
+  n   <- dim(records)[1]
+  
+
+  num <- tcrossprod(loadings) + diag(pc$uniquenesses)
+  T   <- (n-1-(2*p+4*m+5)/6) * log(det(num)) / det((n-1)/n*S)
+  T0  <- qchisq(0.95, df = (((p-m)**2-p-m)/2))
+  
+  if(T>T0){
+    print("Reject H0")
+    }
+  else{
+    print("Can not reject H0")
+    }
+}
+
+
+S  <- cov(records)
+pc <- principal(S, nfactors=3, rotate="varimax")
+loadings <- pc$loadings[,1:3]
+test(records, 3)
+
+s_scores  <-as.matrix(records)%*%loadings
+```
+
+```{r fig.align='center', fig.height=7}
+p1 <- ggplot(data = as.data.frame(s_scores), aes(y = s_scores[,1], x = seq(1, length(s_scores[,1]))))+
+        geom_text_repel(label = rownames(s_scores), size = 2)+
+        xlab("Country Index")+
+        ylab("Scores")+
+        ggtitle("RC2")+
+        geom_point(color = 'red') 
+
+p2 <- ggplot(data = as.data.frame(s_scores), aes(y = s_scores[,2], x = seq(1, length(s_scores[,2]))))+
+        geom_text_repel(label = rownames(s_scores), size = 2)+
+        xlab("Country Index")+
+        ylab("Scores")+
+        ggtitle("RC1")+
+        geom_point(color = 'red') 
+
+p3 <- ggplot(data = as.data.frame(s_scores), aes(y = s_scores[,3], x = seq(1, length(s_scores[,3]))))+
+        geom_text_repel(label = rownames(s_scores), size = 2)+
+        xlab("Country Index")+
+        ylab("Scores")+
+        ggtitle("RC3")+
+        geom_point(color = 'red') 
+
+
+grid.arrange(p1, p2, p3, nrow = 3)
+
+```
+
+
+# Appendix
+
+```{r appendix, eval=FALSE}
+
+
+library(corrplot)
+library(ggplot2)
+
+newdata <- read.delim("D:/Machine Learning/Workshop/Multivariate Statistics/Data/T1-9.dat")
+colnames(newdata) <- c("Country", "100m", "200m", "400m", "800m", "1500m", 
+                       "3000m", "Marathon")
+
+cor.mat <- round(cor(newdata[,-1]),2)
+cor.mat 
+
+corrplot(cor.mat)
+
+eigens <- eigen(cor.mat)
+eigens
+
+
+eigen.vectors <- eigens$vectors
+row.names(eigen.vectors) <- c("100m", "200m", "400m", "800m", "1500m", 
+                              "3000m", "Marathon")
+colnames(eigen.vectors) <- c("COMP1", "COMP2", "COMP3", "COMP4", "COMP5",
+                             "COMP6", "COMP7")
+eigen.vectors
+
+
+alt.pca <- prcomp(newdata[,-1], center = TRUE, scale. = TRUE)
+alt.pca
+
+eigens$vectors[,1:2]
+prcomp(cor.mat)
+
+
+ggplot() +
+  geom_point(aes(alt.pca$x[,1],alt.pca$x[,2])) +
+  xlab("PC1") + ylab("PC2") + ggtitle("Principle Components")
+
+PC1 <- (eigens$values[1]/sum(eigens$values))*100
+PC1
+
+PC2 <- (eigens$values[2]/sum(eigens$values))*100
+PC2
+
+total.var <- PC1 + PC2
+total.var
+
+```

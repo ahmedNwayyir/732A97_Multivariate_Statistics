@@ -1,0 +1,336 @@
+---
+title: "Assignment 2"
+author: "Mohsen Pirmoradiyan, Ahmed Alhasan, Asad Enver, Ali Etminan, Mubarak Hussain"
+date: "11/28/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question 1: Test of outliers
+
+```{r echo=FALSE}
+records <- read.table("C:/Users/WizzCon/Desktop/Machine Learning/Workshop/Multivariate Statistics/Data/T1-9.dat")
+colnames(records) <- c("Country","m100", "m200","m400", "m800", "m1500", "m3000", "Marathon")
+
+# in the previous assignment we used abs(x-xbar(x)) 
+# thats why we didnt get North Korea among the outliers
+centered           <- apply(records[,-1], 2, function(x){x-mean(x)})
+rownames(centered) <- records[[1]]
+
+Cov   <- cov(records[,-1])
+mah   <- ((centered) %*% solve(Cov)) %*% t(centered)
+dist  <- (sort(diag(mah),decreasing = TRUE))
+
+df    <- dim(records[,-1])[2]-1
+alpha <- 0.001
+
+
+chi      <- pchisq(dist, df, lower.tail = FALSE)
+outliers <- list("Outliers" = round(dist[which(chi < alpha)],2))
+outliers
+
+Bonferroni  <- list("Outliers after adjustment" = round(dist[which(chi < (alpha/7))],2))
+Bonferroni 
+```
+
+a) 
+
+- Because confidence interval 0.001 means that there's a 0.1% chance of getting outliers, and because we are testing outliers in different races (7) there is a chance of getting different results with this threshold.
+
+- Therefore, it is adviseable to do multiple testing correction. The simplest method to do this is Bonferroni adjustment which divide alpha by the number of tests (in this case 7)
+
+- 0.1% is reasonable enough to reduce the change in getting different results, since there is trade off between not classifying any country as outlier (using low alpha) and capturing many outliers but with different results from different races (using high alpha)
+
+
+b) 
+
+- Because the distribution of the records between each two races are in elipsoid shape its wise to use Mahalanobis to measure the distance for such distribution, however Mahalanobis penalize the distance on the short axis (or it give less weight to distances along the long axis) and because North Korea lies further way on the short axis it is treated as far as a country with longer distance from the center of the elipse but on the long axis.
+
+
+
+## Question 2: Test, confidence region and confidence intervals for a xbar vector
+
+
+```{r echo=FALSE}
+birds <- read.table("C:/Users/WizzCon/Desktop/Machine Learning/Workshop/Multivariate Statistics/Data/T5-12.dat")
+colnames(birds) <- c("Tail Length", "Wing Length")
+
+x1 <- birds$`Tail Length`
+x2 <- birds$`Wing Length`
+
+n       <- dim(birds)[1]
+p       <- dim(birds)[2]
+xbar    <- colMeans(birds)
+S       <- cov(birds)
+alpha   <- 0.05
+mu      <- c(190,275)
+
+distance    <- xbar-mu
+Tsq         <- n * (t(distance)) %*% (solve(S)) %*% distance
+crit_value  <- (((n-1)*p)/(n-p)) * qf(1-alpha, p, n-p)
+
+list("T Squared" = Tsq, "Critical Value" = crit_value)
+
+
+
+# Plotting the ellipse
+
+angles <- seq(0, 2*pi, length.out=200)
+#eigen values and eigen vectors of covariance-variance matrix
+eigVal <-eigen(S)$values
+eigVec <- eigen(S)$vectors
+
+
+eigScl <- eigVec%*%diag(sqrt(eigVal))
+
+
+xMat <- rbind(xbar[1] + eigScl[1,]**crit_value, xbar[1]- eigScl[1,]*crit_value)
+yMat <- rbind(xbar[2] + eigScl[2,]**crit_value, xbar[2]- eigScl[2,]*crit_value)
+
+ellBase <- cbind(sqrt(eigVal[1])*crit_value*cos(angles), sqrt(eigVal[2])* crit_value*sin(angles))
+
+ellRot <- eigVec%*%t(ellBase)
+
+plot(x1,x2)
+lines((ellRot+xbar)[1,], (ellRot + xbar)[2,], asp=1, type='l', lwd=2, 
+     main= "100(1-a)% Confidence Ellipsoid", xlab="x1", ylab="x2")
+points(xbar[1], xbar[2], pch=4, col="orange", lwd=3)
+points(mu[1], mu[2], pch=8, col="green", lwd=3)
+
+
+
+```
+
+a) 
+
+- Because $T^2$ is smaller than the citical value of $T^2$ at $\alpha$ = 5% we can not reject the null hypotheses and we can conclude that the population means of the male birds are plausible means for the female birds.
+
+
+b) 
+
+```{r echo=FALSE}
+# Simultaneous Intervals
+f <- sqrt(((n-1)*p/(n-p))*qf(1-alpha, p, n-p))
+
+sim_low <- round((t(xbar) - f * sqrt(diag(S)/n)),2)
+sim_up  <- round((t(xbar) + f * sqrt(diag(S)/n)),2)
+sim_interval           <- rbind(sim_low, sim_up)
+rownames(sim_interval) <- c("lower band", "upper band")
+
+#Bonferroni Intervals
+t <- qt((1-alpha/(2)), df = (n-1))
+
+bon_low <- round((t(xbar) - t * sqrt(diag(S)/n)),2)
+bon_up  <- round((t(xbar) + t * sqrt(diag(S)/n)),2)
+bon_interval           <- rbind(bon_low, bon_up)
+rownames(bon_interval) <- c("lower band", "upper band")
+
+list("Simultaneous Intervals" = sim_interval, "Bonferroni Intervals" = bon_interval)
+```
+
+- As it can be identified from these values the Benferroni intrvals are shorter than those calculted from $T^2$, and it didn't capture the populatio means of the male birds. 
+
+Refer to the book: "The simultaneous confidence intervals($T^2$) are ideal for “data snooping.” The confidence coefficient $1-\alpha$ remains unchanged for any choice of **a**, so linear combinations of the components $\mu_i$ that merit inspection based upon an examination of the data can be estimated.
+
+
+c)
+
+```{r echo=FALSE, fig.align='center', fig.width=6, fig.height=2.5}
+qqnorm(birds[,1], main = "Q-Q plot for x1")
+qqline(birds[,1])
+qqnorm(birds[,2], main = "Q-Q plot for x2")
+qqline(birds[,2])
+plot(birds[,1], birds[,2])
+
+```
+
+<p> The Q-Q plot for both variables ($x_1$ & $x_2$) illustrate a linear trend. The scatterplot of two variables also indicates a linear relationship between these two features. These linear trends can lead us to this conclusion that the population can be considered as normal.</p>
+
+
+## Question 3: Comparison of xbar vectors (one{way MANOVA)
+```{r include=FALSE}
+library(heplots)
+library(ggplot2)
+data(Skulls)
+data <- Skulls
+```
+
+```{r}
+# fit manova model
+sk.mod <- lm(cbind(mb, bh, bl, nh) ~ epoch, data=Skulls)
+sk.mod
+```
+
+<p> Boxplots:</p>
+
+```{r echo=FALSE, fig.align='center', fig.width=6, fig.height=2.5, warning=FALSE}
+#Boxplots
+boxplot(mb ~ epoch, data=data)
+boxplot(bh ~ epoch, data=data)
+boxplot(bl ~ epoch, data=data)
+boxplot(nh ~ epoch, data=data)
+```
+
+
+<p> Features distributions with respect to the epochs:</p>
+```{r echo=FALSE, fig.align='center', fig.width=6, fig.height=2.5, warning=FALSE}
+ggplot(Skulls, aes(mb, colour = epoch)) +
+  geom_freqpoly(binwidth = 1) + labs(title="mb Distribution by epoch")
+
+ggplot(Skulls, aes(bh, colour = epoch)) +
+  geom_freqpoly(binwidth = 1) + labs(title="bh Distribution by epoch")
+
+ggplot(Skulls, aes(bl, colour = epoch)) +
+  geom_freqpoly(binwidth = 1) + labs(title="bl Distribution by epoch")
+
+ggplot(Skulls, aes(nh, colour = epoch)) +
+  geom_freqpoly(binwidth = 1) + labs(title="nh Distribution by epoch")
+
+```
+
+
+```{r echo=FALSE, fig.align='center', fig.width=6, fig.height=2.5, warning=FALSE}
+c <- ggplot(Skulls, aes(x=mb, fill=epoch, color=epoch)) +
+  geom_histogram(binwidth = 1) + labs(title="mb Distribution by epoch")
+c + theme_bw()
+
+c <- ggplot(Skulls, aes(x=bh, fill=epoch, color=epoch)) +
+  geom_histogram(binwidth = 1) + labs(title="bh Distribution by epoch")
+c + theme_bw()
+
+c <- ggplot(Skulls, aes(x=bl, fill=epoch, color=epoch)) +
+  geom_histogram(binwidth = 1) + labs(title="bl Distribution by epoch")
+c + theme_bw()
+
+c <- ggplot(Skulls, aes(x=nh, fill=epoch, color=epoch)) +
+  geom_histogram(binwidth = 1) + labs(title="nh Distribution by epoch")
+c + theme_bw()
+```
+
+
+<p> xbar matrix indicating the xbar values for each feature:</p>
+```{r echo=FALSE, warning=FALSE}
+#Mean matrix
+epoch = levels(Skulls$epoch)
+
+Mean = matrix(0, nrow = length(epoch), ncol = 4)
+rownames(Mean) = levels(Skulls$epoch)
+colnames(Mean) = colnames(Skulls)[-1]
+for (i in epoch) {
+  for (j in colnames(Mean)) {
+    Mean[i,j] = mean(Skulls[,j][Skulls[1] == i])
+    
+  }
+}
+library(plot.matrix)
+par(mar=c(5.1, 4.1, 4.1, 4.1))
+plot(Mean, breaks = 20)
+
+
+```
+
+<p> Scatter plots of features conditioning on epochs:</p>
+```{r echo=FALSE,fig.align='center', fig.width=6, fig.height=4, warning=FALSE}
+#Scatterplots
+scatterplot(mb ~ bh|epoch, data=Skulls, ellipse=TRUE, levels=0.68, smooth=FALSE, legend.coords="topright")
+scatterplot(mb ~ bl|epoch, data=Skulls, ellipse=TRUE, levels=0.68, smooth=FALSE, legend.coords="topright")
+scatterplot(mb ~ nh|epoch, data=Skulls, ellipse=TRUE, levels=0.68, smooth=FALSE, legend.coords="topright")
+
+scatterplot(bh ~ mb|epoch, data=Skulls, ellipse=TRUE, levels=0.68, smooth=FALSE, legend.coords="topright")
+scatterplot(bh ~ bl|epoch, data=Skulls, ellipse=TRUE, levels=0.68, smooth=FALSE, legend.coords="topright")
+scatterplot(bh ~ nh|epoch, data=Skulls, ellipse=TRUE, levels=0.68, smooth=FALSE, legend.coords="topright")
+
+scatterplot(bl ~ mb|epoch, data=Skulls, ellipse=TRUE, levels=0.68, smooth=FALSE, legend.coords="topright")
+scatterplot(bl ~ bh|epoch, data=Skulls, ellipse=TRUE, levels=0.68, smooth=FALSE, legend.coords="topright")
+scatterplot(bl ~ nh|epoch, data=Skulls, ellipse=TRUE, levels=0.68, smooth=FALSE, legend.coords="topright")
+
+scatterplot(nh ~ mb|epoch, data=Skulls, ellipse=TRUE, levels=0.68, smooth=FALSE, legend.coords="topright")
+scatterplot(nh ~ bh|epoch, data=Skulls, ellipse=TRUE, levels=0.68, smooth=FALSE, legend.coords="topright")
+scatterplot(nh ~ bl|epoch, data=Skulls, ellipse=TRUE, levels=0.68, smooth=FALSE, legend.coords="topright")
+
+```
+
+#(b)
+```{r echo=FALSE, warning=FALSE}
+
+manova_1 <- manova(cbind(mb, bh, bl, nh)~ as.factor(epoch), data= data)
+summary(manova_1)
+
+# Different tests for MANOVA
+summary(manova_1, test = "Hotelling-Lawley")
+summary(manova_1, test = "Roy")
+summary(manova_1, test = "Pillai")
+summary(manova_1, test = "Wilks")
+
+summary.aov(manova_1)
+
+```
+
+```{r echo=FALSE, warning=FALSE}
+#Pairwise comparisons
+
+#4000BC, 3300BC and 185BC
+manova_2 <- manova(cbind(mb, bh, bl, nh)~ as.factor(epoch), data= data,
+                   subset= as.factor(epoch) %in% c("c4000BC", "c3300BC", " c1850BC"))
+
+#4000BC, AD150
+manova_3 <- manova(cbind(mb, bh, bl, nh)~ as.factor(epoch), data= data,
+                   subset= as.factor(epoch) %in% c("c4000BC", "cAD150"))
+
+
+
+summary(manova_2)
+summary(manova_3)
+
+```
+
+```{r echo=FALSE, warning=FALSE}
+intervals <- confint(sk.mod, level = 0.95/length(coef(sk.mod)))
+intervals
+
+intervals <- confint(manova_1, level = 0.95/length(coef(manova_1)))
+intervals
+
+sk.mod <- lm(cbind(mb, bh, bl, nh) ~ epoch, data=data)
+sk.mod
+summary(sk.mod)
+
+#plot(sk.mod$resid~data$epoch[order(data$epoch)], abline(h=0,lty=2))
+```
+
+```{r echo=FALSE, warning=FALSE}
+#Histogram of Residuals
+hist(sk.mod$resid, main="Histogram of Residuals",
+     ylab="Residuals")
+
+#Q-Q Plot
+qqnorm(sk.mod$resid)
+qqline(sk.mod$resid)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+*The data come from normal distribution.*
+
+## Refrences
+- http://www.biostathandbook.com/multiplecomparisons.html 
+
+- https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2907892/ 
+
+- http://users.stat.umn.edu/~helwig/notes/mvmean-Notes.pdf 
+
